@@ -13,16 +13,23 @@ export function createPetRenderer() {
     let settings;
     let sources;
     let host;
+    let sprite;
     let image;
     let mirror;
+    let marker;
+    let beforeCaret;
+    let afterCaret;
+    let mirrorDirty = true;
+    let mirrorWidth = 0;
+    let caretCache = null;
+    let currentSource;
     let editor;
     let listeners;
     let resizeObserver;
     let layoutObserver;
     let frame = 0;
     let resetTimer = 0;
-    let compositionTimer = 0;
-    let composing = false;
+    let lastInputValue = '';
     let positioned = false;
     let pose = 0;
     const motion = window.matchMedia('(prefers-reduced-motion: reduce)');
@@ -36,22 +43,36 @@ export function createPetRenderer() {
         host = document.createElement('div');
         host.id = 'puppys-pals-pet';
         host.setAttribute('aria-hidden', 'true');
-        host.style.cssText = 'all:initial!important;position:fixed!important;inset:0 auto auto 0!important;pointer-events:none!important;z-index:9990!important;display:none!important;';
+        host.style.cssText = 'all:initial!important;position:fixed!important;inset:0 auto auto 0!important;width:0!important;height:0!important;pointer-events:none!important;z-index:9990!important;display:none!important;';
         const shadow = host.attachShadow({ mode: 'closed' });
         const style = document.createElement('style');
         style.textContent = 'img{display:block;width:100%;height:100%;object-fit:contain;user-select:none;pointer-events:none;filter:drop-shadow(0 2px 2px #0003)}';
+        sprite = document.createElement('div');
+        sprite.style.cssText = 'position:absolute;left:0;pointer-events:none;';
         image = document.createElement('img');
         image.alt = '';
         image.draggable = false;
         image.src = sources[0];
+        currentSource = sources[0];
         mirror = document.createElement('div');
         mirror.style.cssText = 'all:initial;position:fixed;top:0;left:-10000px;visibility:hidden;pointer-events:none;box-sizing:border-box;border-style:solid;overflow:hidden;';
-        shadow.append(style, image, mirror);
+        beforeCaret = document.createTextNode('');
+        afterCaret = document.createTextNode('');
+        marker = document.createElement('span');
+        marker.append(afterCaret);
+        mirror.append(beforeCaret, marker);
+        mirrorDirty = true;
+        caretCache = null;
+        sprite.append(image);
+        shadow.append(style, sprite, mirror);
         document.documentElement.append(host);
     }
 
     function bindEditor(next) {
         editor = next;
+        lastInputValue = editor?.value || '';
+        mirrorDirty = true;
+        caretCache = null;
         positioned = false;
         resizeObserver.disconnect();
         layoutObserver.disconnect();
@@ -62,26 +83,31 @@ export function createPetRenderer() {
             resizeObserver.observe(node);
             layoutObserver.observe(node, {
                 childList: node === container, subtree: node === container,
-                attributes: true, attributeFilter: ['style', 'class', 'hidden', 'disabled', 'readonly'],
+                attributes: true, attributeFilter: ['style', 'class', 'hidden', 'disabled', 'readonly', 'dir', 'wrap'],
             });
         }
     }
 
-    function caretPosition() {
-        const rect = editor.getBoundingClientRect();
-        const style = getComputedStyle(editor);
-        for (const key of mirroredStyles) mirror.style[key] = style[key];
-        mirror.style.width = `${editor.clientWidth + parseFloat(style.borderLeftWidth) + parseFloat(style.borderRightWidth)}px`;
-        mirror.style.whiteSpace = editor.wrap === 'off' ? 'pre' : 'pre-wrap';
-        mirror.style.overflowWrap = editor.wrap === 'off' ? 'normal' : 'break-word';
+    function caretPosition(rect, style) {
+        const width = editor.clientWidth;
+        if (mirrorDirty || mirrorWidth !== width) {
+            for (const key of mirroredStyles) mirror.style[key] = style[key];
+            mirror.style.width = `${width + parseFloat(style.borderLeftWidth) + parseFloat(style.borderRightWidth)}px`;
+            mirror.style.whiteSpace = editor.wrap === 'off' ? 'pre' : 'pre-wrap';
+            mirror.style.overflowWrap = editor.wrap === 'off' ? 'normal' : 'break-word';
+            mirrorWidth = width;
+            mirrorDirty = false;
+            caretCache = null;
+        }
         const position = (editor.selectionDirection === 'backward' ? editor.selectionStart : editor.selectionEnd) ?? editor.value.length;
-        mirror.textContent = editor.value.slice(0, position);
-        const marker = document.createElement('span');
-        marker.textContent = editor.value.slice(position) || '\u200b';
-        mirror.append(marker);
-        const markerRect = marker.getClientRects()[0] || marker.getBoundingClientRect();
-        const mirrorRect = mirror.getBoundingClientRect();
-        return { x: rect.left + (style.direction === 'rtl' ? markerRect.right : markerRect.left) - mirrorRect.left - editor.scrollLeft, rect };
+        if (!caretCache || caretCache.value !== editor.value || caretCache.position !== position) {
+            beforeCaret.data = editor.value.slice(0, position);
+            afterCaret.data = editor.value.slice(position) || '\u200b';
+            const markerRect = marker.getClientRects()[0] || marker.getBoundingClientRect();
+            const mirrorRect = mirror.getBoundingClientRect();
+            caretCache = { value: editor.value, position, x: (style.direction === 'rtl' ? markerRect.right : markerRect.left) - mirrorRect.left };
+        }
+        return rect.left + caretCache.x - editor.scrollLeft;
     }
 
     function hide() {
@@ -110,14 +136,16 @@ export function createPetRenderer() {
         if (size <= 0) { hide(); return; }
         if (!host?.isConnected) createHost();
         host.style.setProperty('display', 'block', 'important');
-        const caret = caretPosition();
+        // Measure the fixed origin because mobile keyboards can shift it.
+        const origin = host.getBoundingClientRect();
+        const caretX = caretPosition(rect, style);
         const rail = { left: rect.left - leftEdge, right: rect.right - leftEdge, top: rect.top - topEdge };
-        const position = railPosition({ x: caret.x - leftEdge }, size, settings.gap, width, rail);
-        host.style.setProperty('width', `${size}px`, 'important');
-        host.style.setProperty('height', `${size * 0.75}px`, 'important');
-        host.style.setProperty('transition', positioned && !motion.matches ? 'transform 120ms ease-out' : 'none', 'important');
-        host.style.setProperty('top', `${position.top + topEdge}px`, 'important');
-        host.style.setProperty('transform', `translateX(${position.left + leftEdge}px)`, 'important');
+        const position = railPosition({ x: caretX - leftEdge }, size, settings.gap, width, rail);
+        sprite.style.width = `${size}px`;
+        sprite.style.height = `${size * 0.75}px`;
+        sprite.style.transition = positioned && !motion.matches ? 'transform 120ms ease-out' : 'none';
+        sprite.style.top = `${position.top + topEdge - origin.top}px`;
+        sprite.style.transform = `translateX(${position.left + leftEdge - origin.left}px)`;
         positioned = true;
     }
 
@@ -125,10 +153,22 @@ export function createPetRenderer() {
         if (listeners && !frame) frame = requestAnimationFrame(update);
     }
 
+    function layoutChanged() {
+        mirrorDirty = true;
+        schedule();
+    }
+
+    function showPose(src) {
+        if (image && currentSource !== src) {
+            image.src = src;
+            currentSource = src;
+        }
+    }
+
     function idle() {
         clearTimeout(resetTimer);
         resetTimer = 0;
-        if (image) image.src = sources[0];
+        showPose(sources[0]);
     }
 
     function canPlaySound(event) {
@@ -140,7 +180,7 @@ export function createPetRenderer() {
     function tap(event) {
         if (canPlaySound(event)) sound.play();
         if (!image || motion.matches || document.hidden) return;
-        image.src = sources[pose + 1];
+        showPose(sources[pose + 1]);
         pose = (pose + 1) % (sources.length - 1);
         clearTimeout(resetTimer);
         resetTimer = setTimeout(idle, 140);
@@ -150,27 +190,33 @@ export function createPetRenderer() {
     function input(event) {
         if (!isComposer(event)) return;
         schedule();
-        if (!event.isComposing && !composing && event.inputType !== 'insertFromPaste') tap(event);
+        // Some keyboards remove composition text before reinserting the committed word.
+        if (event.inputType === 'deleteCompositionText') return;
+        const changed = event.target.value !== lastInputValue;
+        lastInputValue = event.target.value;
+        if (changed && event.inputType !== 'insertFromPaste') tap(event);
     }
     function compositionStart(event) {
         if (!isComposer(event)) return;
-        clearTimeout(compositionTimer);
-        composing = true;
+        lastInputValue = event.target.value;
     }
     function compositionEnd(event) {
         if (!isComposer(event)) return;
-        clearTimeout(compositionTimer);
-        compositionTimer = setTimeout(() => { composing = false; }, 0);
-        if (event.data) tap(event);
+        if (event.data && event.target.value !== lastInputValue) tap(event);
+        lastInputValue = event.target.value;
         schedule();
     }
-    function composerEvent(event) { if (isComposer(event)) schedule(); }
+    function composerEvent(event) {
+        if (!isComposer(event)) return;
+        if (event.type === 'focusin' || event.type === 'focusout') layoutChanged();
+        else schedule();
+    }
 
     function start() {
         if (listeners) return;
         listeners = new AbortController();
-        resizeObserver = new ResizeObserver(schedule);
-        layoutObserver = new MutationObserver(schedule);
+        resizeObserver = new ResizeObserver(layoutChanged);
+        layoutObserver = new MutationObserver(layoutChanged);
         bindEditor(document.getElementById('send_textarea'));
         on(document, 'input', input);
         on(document, 'compositionstart', compositionStart);
@@ -183,10 +229,10 @@ export function createPetRenderer() {
             if (event.target === document || event.target === editor || event.target?.contains?.(editor)) schedule();
         }, true);
         on(document, 'visibilitychange', () => { sound.pause(); idle(); schedule(); });
-        on(window, 'resize', schedule);
-        on(window.visualViewport, 'resize', schedule);
+        on(window, 'resize', layoutChanged);
+        on(window.visualViewport, 'resize', layoutChanged);
         on(window.visualViewport, 'scroll', schedule);
-        on(document.fonts, 'loadingdone', schedule);
+        on(document.fonts, 'loadingdone', layoutChanged);
         on(motion, 'change', () => { idle(); schedule(); });
         schedule();
     }
@@ -199,12 +245,16 @@ export function createPetRenderer() {
         layoutObserver?.disconnect();
         cancelAnimationFrame(frame);
         clearTimeout(resetTimer);
-        clearTimeout(compositionTimer);
         host?.remove();
-        host = image = mirror = editor = null;
+        host = sprite = image = mirror = editor = null;
+        marker = beforeCaret = afterCaret = caretCache = null;
+        currentSource = undefined;
+        mirrorWidth = 0;
+        mirrorDirty = true;
         resizeObserver = layoutObserver = null;
-        frame = resetTimer = compositionTimer = pose = 0;
-        positioned = composing = false;
+        frame = resetTimer = pose = 0;
+        positioned = false;
+        lastInputValue = '';
     }
 
     function configure(nextSettings, nextSources, active, customSound = null) {
