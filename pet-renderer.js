@@ -47,7 +47,7 @@ export function createPetRenderer() {
         host.style.cssText = `all:initial!important;position:${mobileDevice ? 'absolute' : 'fixed'}!important;inset:0 auto auto 0!important;width:0!important;height:0!important;pointer-events:none!important;z-index:9990!important;display:none!important;`;
         const shadow = host.attachShadow({ mode: 'closed' });
         const style = document.createElement('style');
-        style.textContent = 'img{display:block;width:100%;height:100%;object-fit:contain;user-select:none;pointer-events:none;filter:drop-shadow(0 2px 2px #0003)}';
+        style.textContent = `img{display:block;width:100%;height:100%;object-fit:contain;user-select:none;pointer-events:none;${mobileDevice ? '' : 'filter:drop-shadow(0 2px 2px #0003)'}}`;
         sprite = document.createElement('div');
         sprite.style.cssText = 'position:absolute;left:0;pointer-events:none;';
         image = document.createElement('img');
@@ -184,10 +184,14 @@ export function createPetRenderer() {
     function place(size, left, top) {
         sprite.style.width = `${size}px`;
         sprite.style.height = `${size * 0.75}px`;
-        sprite.style.transition = positioned && !motion.matches ? 'transform 120ms ease-out' : 'none';
         sprite.style.top = `${top}px`;
-        sprite.style.transform = `translateX(${left}px)`;
-        positioned = true;
+        if (mobileDevice) {
+            sprite.style.left = `${left}px`;
+        } else {
+            sprite.style.transition = positioned && !motion.matches ? 'transform 120ms ease-out' : 'none';
+            sprite.style.transform = `translateX(${left}px)`;
+            positioned = true;
+        }
     }
 
     function schedule() {
