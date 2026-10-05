@@ -23,6 +23,11 @@ export const typingSounds = Object.freeze([
 export const defaults = Object.freeze({ enabled: true, typingSound: false, soundPreset: 'typewriter', skin: 'classic', size: 100, gap: 4 });
 export const MIN_CUSTOM_FRAMES = 3;
 export const MAX_CUSTOM_FRAMES = 9;
+const device = globalThis.navigator;
+export const mobileDevice = Boolean(device?.userAgentData?.mobile
+    || /Android|iPhone|iPad|iPod/i.test(device?.userAgent || '')
+    || (/Mac/i.test(device?.platform || '') && device?.maxTouchPoints > 1)
+    || (device?.maxTouchPoints > 0 && globalThis.matchMedia?.('(pointer: coarse) and (hover: none)').matches));
 export const warn = (scope, error) => console.warn(`[PP] ${scope}`, error);
 
 export function customFrames(value) {

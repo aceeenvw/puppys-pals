@@ -13,7 +13,7 @@ A fork of [Puppy's JanitorAI Chat Pets](https://github.com/PuppyWasTaken/Puppys-
 
 - **11 original pets** with cursor-following movement and typing poses.
 - **Up to 5 named custom pets**, each with **3–9 frames** — frame 1 is idle; the rest advance in order as you type.
-- **Optional typing sounds** — Typewriter, Keyboard, iPhone, or your own named clip. Off by default.
+- **Desktop-only typing sounds** — Typewriter, Keyboard, iPhone, or your own named clip. Off by default.
 - **Pet size** — 32–300 px (100 px by default), with adjustable height and automatic fitting to smaller chat bars.
 - **Native settings**, touch-friendly controls, reduced-motion support, and English/Russian UI.
 
@@ -29,7 +29,7 @@ SillyTavern/public/scripts/extensions/third-party/
 
 ## Use
 
-Open a chat, then **Extensions → ⊹ PUPPY'S PALS ⊹**. Enable **Show my pet**, choose a pet, and adjust its size and height. Expand **Sound** and enable **Typing sound** to choose a sound style.
+Open a chat, then **Extensions → ⊹ PUPPY'S PALS ⊹**. Enable **Show my pet**, choose a pet, and adjust its size and height. On mobile, the pet stays above the input bar and follows the caret horizontally. On desktop, expand **Sound** and enable **Typing sound** to choose a sound style.
 
 ### Custom pets
 
@@ -41,7 +41,7 @@ PNG, JPEG, and WebP are supported, up to **5 MiB** and **4096 × 4096 px** per i
 
 At five pets, delete one before adding another. Saving replaces only the edited pet’s frames. Switching pets or closing discards unsaved edits.
 
-### Custom sound
+### Custom sound (desktop)
 
 Expand **Sound**, enable **Typing sound**, then use **Custom sound → Upload / replace**. The clip is saved and selected immediately. Edit its name and click **Save name** to rename it; **Remove sound** deletes its name and audio.
 

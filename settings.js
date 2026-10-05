@@ -1,4 +1,4 @@
-import { skins, typingSounds, frameSources, customFrames, MIN_CUSTOM_FRAMES, MAX_CUSTOM_FRAMES } from './pet-core.js';
+import { skins, typingSounds, frameSources, customFrames, MIN_CUSTOM_FRAMES, MAX_CUSTOM_FRAMES, mobileDevice } from './pet-core.js';
 import { readFile, collectFrames, loadDrafts } from './custom-images.js';
 import { readSound, soundName } from './custom-sound.js';
 import { MAX_PETS, petName } from './pet-library.js';
@@ -128,7 +128,7 @@ export function createSettings({ getSettings, getPet, changeSettings, savePet, r
     on(root.querySelector('#pp-sound-remove'), 'click', () => { void soundTask(removeSound, 'soundRemoved'); });
 
     async function soundTask(operation, success) {
-        if (soundBusy || getSound().loading) return;
+        if (mobileDevice || soundBusy || getSound().loading) return;
         soundBusy = true;
         soundMessage = 'working';
         soundError = false;
@@ -146,9 +146,9 @@ export function createSettings({ getSettings, getPet, changeSettings, savePet, r
             if (!listeners.signal.aborted) { soundBusy = false; refresh(); }
         }
     }
-    on(soundSelect, 'change', () => changeSettings({ soundPreset: soundSelect.value }));
+    on(soundSelect, 'change', () => { if (!mobileDevice) changeSettings({ soundPreset: soundSelect.value }); });
     on(root.querySelector('#pp-enabled'), 'change', event => changeSettings({ enabled: event.target.checked }));
-    on(root.querySelector('#pp-typing-sound'), 'change', event => changeSettings({ typingSound: event.target.checked }));
+    on(root.querySelector('#pp-typing-sound'), 'change', event => { if (!mobileDevice) changeSettings({ typingSound: event.target.checked }); });
     on(select, 'change', () => changeSettings(select.value.startsWith('pet:')
         ? { skin: 'custom', customPetId: select.value.slice(4) } : { skin: select.value }));
     for (const key of ['size', 'gap']) {
@@ -177,14 +177,16 @@ export function createSettings({ getSettings, getPet, changeSettings, savePet, r
         const settings = getSettings();
         translateElement(root);
         root.querySelector('#pp-enabled').checked = settings.enabled;
-        root.querySelector('#pp-typing-sound').checked = settings.typingSound;
+        root.querySelector('#pp-sound-section').hidden = mobileDevice;
+        root.querySelector('#pp-typing-sound').disabled = soundSelect.disabled = mobileDevice;
+        root.querySelector('#pp-typing-sound').checked = !mobileDevice && settings.typingSound;
         root.querySelector('#pp-sound-options').hidden = !settings.typingSound;
         soundSelect.value = settings.soundPreset;
         const sound = getSound();
         const customOption = soundSelect.querySelector('option[value="custom"]');
         customOption.textContent = sound.value?.name ? `${t('soundCustom')} · ${sound.value.name}` : t('soundCustom');
         if (!soundDirty) nameInput.value = sound.value?.name || '';
-        const soundDisabled = soundBusy || sound.loading;
+        const soundDisabled = mobileDevice || soundBusy || sound.loading;
         root.querySelector('#pp-custom-sound').setAttribute('aria-busy', String(soundDisabled));
         nameInput.disabled = soundInput.disabled = root.querySelector('#pp-sound-upload').disabled = soundDisabled;
         rename.disabled = soundDisabled || !sound.value || !soundDirty;

@@ -1,4 +1,4 @@
-import { railPosition } from './pet-core.js';
+import { railPosition, mobileDevice } from './pet-core.js';
 import { createTypingSound } from './typing-sound.js';
 
 const mirroredStyles = [
@@ -24,6 +24,7 @@ export function createPetRenderer() {
     let caretCache = null;
     let currentSource;
     let editor;
+    let mobileRail;
     let listeners;
     let resizeObserver;
     let layoutObserver;
@@ -43,7 +44,7 @@ export function createPetRenderer() {
         host = document.createElement('div');
         host.id = 'puppys-pals-pet';
         host.setAttribute('aria-hidden', 'true');
-        host.style.cssText = 'all:initial!important;position:fixed!important;inset:0 auto auto 0!important;width:0!important;height:0!important;pointer-events:none!important;z-index:9990!important;display:none!important;';
+        host.style.cssText = `all:initial!important;position:${mobileDevice ? 'absolute' : 'fixed'}!important;inset:0 auto auto 0!important;width:0!important;height:0!important;pointer-events:none!important;z-index:9990!important;display:none!important;`;
         const shadow = host.attachShadow({ mode: 'closed' });
         const style = document.createElement('style');
         style.textContent = 'img{display:block;width:100%;height:100%;object-fit:contain;user-select:none;pointer-events:none;filter:drop-shadow(0 2px 2px #0003)}';
@@ -55,7 +56,7 @@ export function createPetRenderer() {
         image.src = sources[0];
         currentSource = sources[0];
         mirror = document.createElement('div');
-        mirror.style.cssText = 'all:initial;position:fixed;top:0;left:-10000px;visibility:hidden;pointer-events:none;box-sizing:border-box;border-style:solid;overflow:hidden;';
+        mirror.style.cssText = `all:initial;${mobileDevice ? 'position:absolute;left:0;height:0;' : 'position:fixed;left:-10000px;'}top:0;visibility:hidden;pointer-events:none;box-sizing:border-box;border-style:solid;overflow:hidden;`;
         beforeCaret = document.createTextNode('');
         afterCaret = document.createTextNode('');
         marker = document.createElement('span');
@@ -65,7 +66,7 @@ export function createPetRenderer() {
         caretCache = null;
         sprite.append(image);
         shadow.append(style, sprite, mirror);
-        document.documentElement.append(host);
+        (mobileDevice ? mobileRail : document.documentElement).append(host);
     }
 
     function bindEditor(next) {
@@ -76,6 +77,11 @@ export function createPetRenderer() {
         positioned = false;
         resizeObserver.disconnect();
         layoutObserver.disconnect();
+        mobileRail = mobileDevice ? editor?.closest('#nonQRFormItems') : null;
+        if (mobileDevice && host) {
+            if (mobileRail) mobileRail.append(host);
+            else host.remove();
+        }
         const container = document.getElementById('form_sheld');
         if (container) layoutObserver.observe(container, { childList: true, subtree: true });
         // Observe composer ancestors to avoid streaming updates.
@@ -115,14 +121,46 @@ export function createPetRenderer() {
         positioned = false;
     }
 
+    function mobilePosition(style) {
+        const parent = host.offsetParent;
+        if (!parent) return null;
+        let left = 0, top = 0, node = editor;
+        while (node && node !== parent) {
+            left += node.offsetLeft;
+            top += node.offsetTop;
+            node = node.offsetParent;
+            if (node && node !== parent) {
+                left += node.clientLeft - node.scrollLeft;
+                top += node.clientTop - node.scrollTop;
+            }
+        }
+        if (node !== parent || editor.offsetWidth <= 80 || editor.offsetHeight <= 15) return null;
+        const size = Math.min(settings.size, editor.offsetWidth);
+        const caretX = caretPosition({ left }, style);
+        return {
+            size,
+            left: Math.max(left, Math.min(left + editor.offsetWidth - size, caretX - size / 2)),
+            top: top - size * 0.75 - settings.gap,
+        };
+    }
+
     function update() {
         frame = 0;
         if (!listeners || document.hidden) { hide(); return; }
         const next = document.getElementById('send_textarea');
-        if (next !== editor) bindEditor(next);
+        if (next !== editor || (mobileDevice && (next?.closest('#nonQRFormItems') !== mobileRail || (host && !host.isConnected)))) bindEditor(next);
         if (!editor || editor.disabled || editor.readOnly) { hide(); return; }
-        const rect = editor.getBoundingClientRect();
         const style = getComputedStyle(editor);
+        if (mobileDevice) {
+            if (!mobileRail || style.visibility === 'hidden') { hide(); return; }
+            if (!host) createHost();
+            host.style.setProperty('display', 'block', 'important');
+            const position = mobilePosition(style);
+            if (!position) { hide(); return; }
+            place(position.size, position.left, position.top);
+            return;
+        }
+        const rect = editor.getBoundingClientRect();
         const viewport = window.visualViewport;
         const leftEdge = viewport?.offsetLeft || 0;
         const topEdge = viewport?.offsetTop || 0;
@@ -136,16 +174,19 @@ export function createPetRenderer() {
         if (size <= 0) { hide(); return; }
         if (!host?.isConnected) createHost();
         host.style.setProperty('display', 'block', 'important');
-        // Measure the fixed origin because mobile keyboards can shift it.
         const origin = host.getBoundingClientRect();
         const caretX = caretPosition(rect, style);
         const rail = { left: rect.left - leftEdge, right: rect.right - leftEdge, top: rect.top - topEdge };
         const position = railPosition({ x: caretX - leftEdge }, size, settings.gap, width, rail);
+        place(size, position.left + leftEdge - origin.left, position.top + topEdge - origin.top);
+    }
+
+    function place(size, left, top) {
         sprite.style.width = `${size}px`;
         sprite.style.height = `${size * 0.75}px`;
         sprite.style.transition = positioned && !motion.matches ? 'transform 120ms ease-out' : 'none';
-        sprite.style.top = `${position.top + topEdge - origin.top}px`;
-        sprite.style.transform = `translateX(${position.left + leftEdge - origin.left}px)`;
+        sprite.style.top = `${top}px`;
+        sprite.style.transform = `translateX(${left}px)`;
         positioned = true;
     }
 
@@ -172,7 +213,7 @@ export function createPetRenderer() {
     }
 
     function canPlaySound(event) {
-        return settings.typingSound && event.isTrusted && !document.hidden
+        return !mobileDevice && settings.typingSound && event.isTrusted && !document.hidden
             && isComposer(event) && !event.target.disabled && !event.target.readOnly;
     }
     function primeSound(event) { if (canPlaySound(event)) sound.prime(); }
@@ -216,13 +257,17 @@ export function createPetRenderer() {
         if (listeners) return;
         listeners = new AbortController();
         resizeObserver = new ResizeObserver(layoutChanged);
-        layoutObserver = new MutationObserver(layoutChanged);
+        layoutObserver = new MutationObserver(records => {
+            if (records.some(record => record.target !== host)) layoutChanged();
+        });
         bindEditor(document.getElementById('send_textarea'));
         on(document, 'input', input);
         on(document, 'compositionstart', compositionStart);
         on(document, 'compositionend', compositionEnd);
-        on(document, 'pointerup', primeSound);
-        on(document, 'keydown', primeSound);
+        if (!mobileDevice) {
+            on(document, 'pointerup', primeSound);
+            on(document, 'keydown', primeSound);
+        }
         for (const name of ['keyup', 'pointerup', 'focusin', 'focusout']) on(document, name, composerEvent);
         on(document, 'selectionchange', () => { if (document.activeElement === editor) schedule(); });
         on(document, 'scroll', event => {
@@ -230,8 +275,10 @@ export function createPetRenderer() {
         }, true);
         on(document, 'visibilitychange', () => { sound.pause(); idle(); schedule(); });
         on(window, 'resize', layoutChanged);
-        on(window.visualViewport, 'resize', layoutChanged);
-        on(window.visualViewport, 'scroll', schedule);
+        if (!mobileDevice) {
+            on(window.visualViewport, 'resize', layoutChanged);
+            on(window.visualViewport, 'scroll', schedule);
+        }
         on(document.fonts, 'loadingdone', layoutChanged);
         on(motion, 'change', () => { idle(); schedule(); });
         schedule();
@@ -246,7 +293,7 @@ export function createPetRenderer() {
         cancelAnimationFrame(frame);
         clearTimeout(resetTimer);
         host?.remove();
-        host = sprite = image = mirror = editor = null;
+        host = sprite = image = mirror = editor = mobileRail = null;
         marker = beforeCaret = afterCaret = caretCache = null;
         currentSource = undefined;
         mirrorWidth = 0;
@@ -261,8 +308,8 @@ export function createPetRenderer() {
         const changed = !sources || sources.length !== nextSources.length || sources.some((src, index) => src !== nextSources[index]);
         settings = nextSettings;
         sources = nextSources;
-        sound.setPreset(settings.soundPreset, customSound);
-        if (!settings.typingSound) sound.stop();
+        if (!mobileDevice) sound.setPreset(settings.soundPreset, customSound);
+        if (mobileDevice || !settings.typingSound) sound.stop();
         if (changed) {
             idle();
             pose = 0;

@@ -1,4 +1,4 @@
-import { customFrames, frameSources, normalizeSettings, warn } from './pet-core.js';
+import { customFrames, frameSources, normalizeSettings, warn, mobileDevice } from './pet-core.js';
 import { createPetRenderer } from './pet-renderer.js';
 import { createSettings } from './settings.js';
 import { customSound } from './custom-sound.js';
@@ -13,7 +13,7 @@ export function init() {
     if (session) return;
     const ctx = context();
     if (!ctx?.extensionSettings || !ctx.eventSource) return;
-    const state = { active: true, pet: null, sound: { value: null, loading: true, error: false }, ui: null, renderer: createPetRenderer(), disposers: [], loadVersion: 0, soundVersion: 0 };
+    const state = { active: true, pet: null, sound: { value: null, loading: !mobileDevice, error: false }, ui: null, renderer: createPetRenderer(), disposers: [], loadVersion: 0, soundVersion: 0 };
     session = state;
     state.library = { pets: [], loading: true, error: false };
     let store;
@@ -139,7 +139,7 @@ export function init() {
         }
     }
     async function writeSound(value, select = true) {
-        if (!state.active) return;
+        if (!state.active || mobileDevice) return;
         const sound = value === null ? null : customSound(value);
         if (value !== null && !sound) throw new Error('soundDecode');
         const key = `${localKey()}:sound`;
@@ -188,7 +188,7 @@ export function init() {
     for (const name of ['SETTINGS_UPDATED', 'GENERATION_STARTED', 'GENERATION_STOPPED', 'GENERATION_ENDED']) subscribe(name, refresh);
     mount();
     void loadLibrary().catch(error => { if (state.active) warn('load pet library', error); });
-    void loadSound();
+    if (!mobileDevice) void loadSound();
 }
 
 export function cleanup() {

@@ -1,4 +1,4 @@
-import { defaults, typingSounds, warn } from './pet-core.js';
+import { defaults, typingSounds, warn, mobileDevice } from './pet-core.js';
 
 export function createTypingSound() {
     let preset = defaults.soundPreset;
@@ -11,6 +11,7 @@ export function createTypingSound() {
     let warned = false;
 
     function play(quiet = false) {
+        if (mobileDevice) return;
         if (quiet && (unlocked || priming)) return;
         if (!audio) {
             if (customBlob) objectUrl = URL.createObjectURL(customBlob);
