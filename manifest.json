@@ -1,12 +1,12 @@
 {
-    "display_name": "Puppy's Pals",
+    "display_name": "⊹ PUPPY'S PALS ⊹",
     "loading_order": 30,
     "requires": [],
     "optional": [],
     "dependencies": [],
     "js": "index.js",
     "css": "style.css",
-    "author": "Puppywastaken / Permanent; SillyTavern adaptation by aceenvw",
+    "author": "Permanent, adaptation by aceenvw",
     "version": "1.0.0",
     "auto_update": false,
     "hooks": {
