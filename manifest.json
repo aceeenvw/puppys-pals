@@ -1,35 +1,17 @@
 {
-  "manifest_version": 3,
-  "name": "Puppy's Pals: JanitorAI Chat Pets",
-  "version": "0.3.1",
-  "description": "Add a cute typing pet to your JanitorAI chat bar. Choose your companion and watch it follow along as you type.",
-  "icons": {
-    "16": "icons/icon16.png",
-    "32": "icons/icon32.png",
-    "48": "icons/icon48.png",
-    "128": "icons/icon128.png"
-  },
-  "permissions": ["storage", "scripting", "webNavigation"],
-  "host_permissions": ["https://janitorai.com/chats/*"],
-  "background": { "service_worker": "background.js" },
-  "action": {
-    "default_popup": "popup.html",
-    "default_title": "Puppy's Pals: JanitorAI Chat Pets",
-    "default_icon": {
-      "16": "icons/icon16.png",
-      "32": "icons/icon32.png",
-      "48": "icons/icon48.png",
-      "128": "icons/icon128.png"
+    "display_name": "Puppy's Pals",
+    "loading_order": 30,
+    "requires": [],
+    "optional": [],
+    "dependencies": [],
+    "js": "index.js",
+    "css": "style.css",
+    "author": "Puppywastaken / Permanent; SillyTavern adaptation by aceenvw",
+    "version": "1.0.0",
+    "auto_update": false,
+    "hooks": {
+        "activate": "init",
+        "disable": "cleanup",
+        "delete": "cleanup"
     }
-  },
-  "options_ui": { "page": "manage.html", "open_in_tab": true },
-  "content_scripts": [{
-    "matches": ["https://janitorai.com/chats/*"],
-    "js": ["pet-core.js", "content.js"],
-    "run_at": "document_idle"
-  }],
-  "web_accessible_resources": [{
-    "resources": ["assets/*.png"],
-    "matches": ["https://janitorai.com/*"]
-  }]
 }

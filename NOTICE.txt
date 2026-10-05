@@ -1,0 +1,4 @@
+Puppy's Pals is a SillyTavern adaptation of Puppy's JanitorAI Chat Pets.
+Original extension and pet artwork: Copyright (C) 2026 Puppywastaken / Permanent.
+SillyTavern adaptation and modified code: Copyright (C) 2026 aceenvw, 2026-10-03.
+Distributed under the GNU General Public License v3.0; see LICENSE.txt.
